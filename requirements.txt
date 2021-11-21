@@ -1,0 +1,5 @@
+cwt
+requests
+flask
+flask-cors
+gunicorn
