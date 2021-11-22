@@ -53,9 +53,12 @@ def verify_token():
 
     return make_resonse(claims)
 
-@app.route('/refresh')
+@app.route('/refresh', methods=['POST'])
 def refresh_keys():
-    token = request.json.get('token')
+    if not request.json:
+        return jsonify({'success': False}), 401
+
+    token = request.json.get('token', None)
     if not token or token != app.config['REFRESH_TOKEN']:
         return jsonify({'success': False}), 401
 
