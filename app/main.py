@@ -1,5 +1,8 @@
-import json
 import os
+import json
+import time
+
+from functools import wraps
 
 from flask import (
     Flask,
@@ -22,11 +25,34 @@ cors = CORS(app)
 if not os.path.exists(app.instance_path):
     os.makedirs(app.instance_path)
 
+def refresh_keys():
+    jwks = []
+    for issuer in app.config['TRUSTED_ISSUERS']:
+        did_json = keys.get_did(issuer)
+        jwks += keys.parse_did(did_json)
+    
+    with open(os.path.join(app.instance_path, app.config['KEY_FILE']), 'w') as f:
+        json.dump(jwks, f)
+
+def ensure_keys_exist(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        key_file_path = os.path.join(app.instance_path, app.config['KEY_FILE'])
+        if not os.path.exists(key_file_path):
+            refresh_keys()
+
+        elif os.path.getmtime(key_file_path) < time.time() - app.config['KEY_REFRESH_INTERVAL']:
+            refresh_keys()
+        
+        return func(*args, **kwargs)
+    return wrapper
+
 @app.route('/verify', methods=['POST'])
+@ensure_keys_exist
 def verify_token():
     uri = request.json.get('uri')
     if not uri.startswith('NZCP:/'):
-        return jsonify({'success': False})
+        return make_resonse(None, 'Invalid QR Code')
 
     uri = uri[6:]
     version, b32data = uri.split('/')
@@ -36,10 +62,7 @@ def verify_token():
 
     claims, error_msg = verify.verify_and_decode(b32data, key_list)
     if error_msg:
-        return jsonify({
-            'success': False,
-            'error': error_msg
-        })
+        return make_resonse(None, error_msg)
 
     # translate the claims
     claims = {
@@ -51,25 +74,6 @@ def verify_token():
         return make_resonse(claims, 'Issuer not in trusted list')
 
     return make_resonse(claims)
-
-@app.route('/refresh', methods=['POST'])
-def refresh_keys():
-    if not request.json:
-        return jsonify({'success': False}), 401
-
-    token = request.json.get('token', None)
-    if not token or token != app.config['REFRESH_TOKEN']:
-        return jsonify({'success': False}), 401
-
-    jwks = []
-    for issuer in app.config['TRUSTED_ISSUERS']:
-        did_json = keys.get_did(issuer)
-        jwks += keys.parse_did(did_json)
-    
-    with open(os.path.join(app.instance_path, app.config['KEY_FILE']), 'w') as f:
-        json.dump(jwks, f)
-
-    return jsonify(jwks)
 
 def make_resonse(claims, error_msg=None):
     if not claims:

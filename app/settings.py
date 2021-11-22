@@ -6,7 +6,7 @@ class Config:
         'did:web:nzcp.identity.health.nz'
     ]
 
-    REFRESH_TOKEN = os.getenv('REFRESH_TOKEN')
+    KEY_REFRESH_INTERVAL = 60 * 60 * 24  # 1 day
 
     KEY_FILE = 'keys.json'
     CORS_ORIGINS = [
