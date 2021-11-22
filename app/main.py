@@ -1,14 +1,11 @@
 import json
 import os
-import time
 
 from flask import (
     Flask,
     jsonify,
     request
 )
-
-import logging
 
 from flask_cors import CORS
 
@@ -22,6 +19,8 @@ else:
 
 cors = CORS(app)
 
+if not os.path.exists(app.instance_path):
+    os.makedirs(app.instance_path)
 
 @app.route('/verify', methods=['POST'])
 def verify_token():
